@@ -1,6 +1,6 @@
 -- Create the database and select it
-CREATE DATABASE IF NOT EXISTS studentswap;
-USE studentswap;
+CREATE DATABASE IF NOT EXISTS slop-shop;
+USE slop-shop;
 
 -- Users table
 CREATE TABLE IF NOT EXISTS users (
