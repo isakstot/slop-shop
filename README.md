@@ -21,4 +21,4 @@ Clone the repository
 ## Running
 Navigate to the index of the folder you cloned.
 
-Run `docker compose up` to start the server on http://localhost:3000
+Run `docker compose up --build -d` to start the server on http://localhost:3000
