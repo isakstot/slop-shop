@@ -2,7 +2,7 @@
 #### An Express.js based Web application made for a school project
 
 ## Information:
-This was a group project, but I made all of the backend logic and the docker setup (most of the frontend too, just not the home page).
+This was a group project, but I made all of the backend logic and the docker setup (most of the frontend too, just not the home page or the products inserted into the database).
 
 **Slop Shop is a slightly modified version of the original project (Student Swap):**
 - Demonstrated in this video: https://youtu.be/pDVx-w64cXU
