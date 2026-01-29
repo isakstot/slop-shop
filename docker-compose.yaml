@@ -6,8 +6,8 @@ services:
       dockerfile: Dockerfile.mysql
     restart: unless-stopped
     environment:
-      MYSQL_DATABASE: "studentswap"
-      MYSQL_ROOT_PASSWORD: "@RU7.aPA1N4k"
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
     ports:
       - "3306:3306"
     volumes:
@@ -28,12 +28,12 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - NODE_ENV=development
-      - DB_HOST=mysql
-      - DB_PORT=3306
-      - DB_USER=root
-      - DB_PASSWORD=@RU7.aPA1N4k
-      - DB_NAME=studentswap
+      - NODE_ENV=${NODE_ENV}
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
     depends_on:
       mysql:
         condition: service_healthy

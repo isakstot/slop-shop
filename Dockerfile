@@ -14,6 +14,6 @@ COPY . .
 
 EXPOSE 3000
 
-ENV NODE_ENV=development
+ENV NODE_ENV=${NODE_ENV}
 
 CMD ["npm", "run", "devStart"]

@@ -32,8 +32,8 @@ const db = mysql.createPool({
     host: process.env.DB_HOST,
     port: process.env.DB_PORT,
     user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    database: process.env.DB_NAME,
+    password: process.env.MYSQL_ROOT_PASSWORD,
+    database: process.env.MYSQL_DATABASE,
     charset: 'utf8mb4',
     waitForConnections: true,
     connectionLimit: 10,
@@ -62,7 +62,7 @@ const db = mysql.createPool({
                 try {
                     const [results] = await db.execute(
                         'INSERT INTO products (name, description, price, quantity, imageURL) VALUES (?, ?, ?, ?, ?)',
-                        ['Küchenmaschine Deluxe', 'A multifunctional food processor for your cooking needs', 499.99, 10, 'https://www.bader.de/celum/celum_assets/2023HE9_0084010FS070_13593242_jpg_local_l_rd_local_l_rd.jpg/profi-kuechenmaschine-mit-planetenruehrwerk-farbe-rot.jpg']
+                        ['Küchenmaschine Deluxe', 'A multifunctional food processor for your slop cooking needs', 499.99, 10, '/images/kitchen-aid-5231908_640.jpg']
                     );
                     console.log('Product inserted:', results);
                 } catch (err) {
@@ -628,39 +628,58 @@ app.get('/order/:id', isAuthenticated, async (req, res) => {
 
     console.log('Order:', orderId, 'User:', userId);
 
+    try {
+        const [order] = await db.execute('SELECT * FROM orders WHERE id = ? AND userId = ?', [orderId, userId]);
 
-    const [order] = await db.execute('SELECT * FROM orders WHERE id = ? AND userId = ?', [orderId, userId]);
-
-    if (order.length === 0) {
-        return res.status(404).send('Order not found');
-    }
-
-
-    const [orderItems] = await db.execute('SELECT * FROM orderItems WHERE orderId = ?', [orderId]);
-    const items = [];
-    for (let item of orderItems) {
-        const [product] = await db.execute('SELECT name FROM products WHERE id = ?', [item.productId]);
-        items.push({ name: product[0].name, quantity: item.quantity, price: item.priceAtPurchase, subtotal: item.quantity * item.priceAtPurchase });
-        //check if there's enough left in stock
-        const [productQuantity] = await db.execute('SELECT quantity FROM products WHERE id = ?', [item.productId]);
-        if (productQuantity[0].quantity < item.quantity) {
-            return res.status(400).send(`Not enough of ${product[0].name} in stock`);
+        if (order.length === 0) {
+            return res.status(404).send('Order not found');
         }
+
+        const [orderItems] = await db.execute('SELECT * FROM orderItems WHERE orderId = ?', [orderId]);
+        const cartItems = [];
+        
+        // Validate stock availability for all items
+        for (let item of orderItems) {
+            const [product] = await db.execute('SELECT * FROM products WHERE id = ?', [item.productId]);
+            if (product.length === 0) {
+                return res.status(400).send(`Product no longer exists`);
+            }
+            if (product[0].quantity < item.quantity) {
+                return res.status(400).send(`Not enough of ${product[0].name} in stock`);
+            }
+            cartItems.push({
+                id: product[0].id,
+                name: product[0].name,
+                quantity: item.quantity,
+                stock: product[0].quantity,
+                price: product[0].price,
+                total: (product[0].price * item.quantity).toFixed(2),
+                discountPercentage: 0
+            });
+        }
+
+        // Repopulate the session cart with items from the previous order
+        let totalPrice = 0;
+        for (let item of cartItems) {
+            totalPrice += parseFloat(item.total);
+        }
+
+        // Get the user's current cart ID
+        const [cart] = await db.execute('SELECT id FROM carts WHERE userId = ?', [userId]);
+        const cartId = cart.length > 0 ? cart[0].id : null;
+
+        req.session.cart = {
+            id: cartId,
+            quantity: cartItems.reduce((sum, item) => sum + item.quantity, 0),
+            items: cartItems,
+            totalPrice: totalPrice.toFixed(2)
+        };
+
+        res.redirect('/checkout');
+    } catch (err) {
+        console.error('Error retrieving order:', err);
+        res.status(500).send('Internal server error');
     }
-
-    const [ totalPriceResult ] = await db.execute('SELECT totalAmount FROM orders WHERE id = ?', [orderId]);
-    const [ shippingCostResult ] = await db.execute('SELECT shippingCost FROM orders WHERE id = ?', [orderId]);
-    const totalPrice = totalPriceResult[0].totalAmount;
-    const shippingCost = shippingCostResult[0].shippingCost;
-
-    //await sendOrderConfirmation(req.session.user.email, orderId, items, totalPrice, shippingCost);
-
-    //delete quantity from stock
-    for (let item of orderItems) {
-        await db.execute('UPDATE products SET quantity = quantity - ? WHERE id = ?', [item.quantity, item.productId]);
-    }
-
-    res.redirect('/confirmation')
 });
 
 async function sendOrderConfirmation(email, orderId, cartItems, totalPrice, shippingCost) {
