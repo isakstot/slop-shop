@@ -6,8 +6,6 @@
 
 
 ## Installation:
-Clone the repository
-
-
-
-Run `docker compose up` to start the server on http://localhost:3000
+- Clone the repository
+`git clone https://github.com/isakstot/slop-shop.git`
+- Run `docker compose up` in the index of the folder to start the server on http://localhost:3000
