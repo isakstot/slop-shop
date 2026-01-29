@@ -1,6 +1,7 @@
+require('dotenv').config();
 const express = require('express');
 const mysql = require('mysql2/promise');
-const ejs = require('ejs');
+require('ejs');
 const bodyParser = require('body-parser');
 const app = express();
 const port = 3000;
@@ -16,22 +17,23 @@ app.use(bodyParser.json());
 firstLogin = false;
 
 const nodemailer = require('nodemailer');
-var transporter = nodemailer.createTransport({
-    host: "live.smtp.mailtrap.io",
-    port: 587,
-    auth: {
-      user: "api",
-      pass: "1b9d0b0b6486e638d63760720f120ace"
-    }
-});
+// var transporter = nodemailer.createTransport({
+//     host: "live.smtp.mailtrap.io",
+//     port: 587,
+//     auth: {
+//       user: "process.env.NODEMAIL_USER",
+//       pass: "process.env.NODEMAIL_PASS"
+//     }
+// });
 
 
-// Connect to the datbase
+// Connect to the database (read settings from environment variables)
 const db = mysql.createPool({
-    host: 'localhost',
-    user: 'root',
-    password: '@RU7.aPA1N4k',
-    database: 'studentswap',
+    host: process.env.DB_HOST,
+    port: process.env.DB_PORT,
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_NAME,
     charset: 'utf8mb4',
     waitForConnections: true,
     connectionLimit: 10,
@@ -76,7 +78,7 @@ const db = mysql.createPool({
 
 //Session setup
 app.use(session({
-    secret: '=PQ7$LK2mcAXqaLATRMDlRYI9CugLz+N',
+    secret: process.env.SESSION_SECRET,
     resave: false,
     saveUninitialized: true
 }));
@@ -101,16 +103,22 @@ app.get('/', (req, res) => {
     res.render('index.ejs');
 });
 
-app.get('/login', (req, res) => {
+app.get('/login', async (req, res) => {
     if (req.session.user) {
         res.redirect('/');
         return;
     }
-    if (firstLogin) {
-        res.render('login.ejs', {error: 'Check your email for your password'});
-        firstLogin = false;
-        return;
-    }
+    // if (firstLogin) {
+    //     //get the generated password for that user
+    //     const query = 'SELECT * FROM users WHERE email = ?';
+    //     const [results] = await db.execute(query, [email]);
+    //     const user = results[0];
+    //     const generatedPassword = user.hashedPassword;
+
+    //     res.render('login.ejs', {error: 'Login with the one time password: ' + generatedPassword});
+    //     firstLogin = false;
+    //     return;
+    // }
     res.render('login.ejs', {error: ''});
 });
 
@@ -135,13 +143,13 @@ app.post('/login', async (req, res) => {
 
         if (user.needsToChangePassword === 1) {
             console.log('First login');
-            //create a cart for the user
+            // create a cart for the user
             const [result] = await db.execute('INSERT INTO carts (userId) VALUES (?)', [user.id]);
             req.session.cart = { quantity: 0, items: [], totalPrice: 0 };
             req.session.cart.id = result.insertId;
             firstLogin = true;
 
-            redirectValue = '/set-password'
+            // redirectValue = '/set-password'
         }
 
         //update the last login time and isOnline status
@@ -151,7 +159,7 @@ app.post('/login', async (req, res) => {
         // Manually update the last login time in the user object used for the session
         user.lastLogin = new Date();
         req.session.user = user;
-        //check if there are items in the cart for that user and assing them to the session
+        //check if there are items in the cart for that user and add them to the session
         const userId = user.id;
         const [cart] = await db.execute('SELECT * FROM carts WHERE userId = ?', [userId]);
         req.session.cart = { quantity: 0, items: [], totalPrice: 0 };
@@ -171,6 +179,7 @@ app.get('/logout', isAuthenticated, async (req, res) => {
     //update the isOnline status
     const updateQuery = 'UPDATE users SET isOnline = 0 WHERE email = ?';
     await db.execute(updateQuery, [req.session.user.email]);
+    // destroy the session
     req.session.destroy();
     res.redirect('/');
 });
@@ -180,8 +189,8 @@ app.get('/register', (req, res) => {
 });
 
 app.post('/register', async (req, res) => {
-    var password = generatePassword(); //generate a password for the user
-    const { firstName, lastName, email, screenResolution, os } = req.body;
+    //var password = generatePassword(); //generate a password for the user
+    const { firstName, lastName, email, password, screenResolution, os } = req.body;
 
     width = screenResolution.width;
     height = screenResolution.height;
@@ -236,8 +245,10 @@ async function registerUser(firstName, lastName, email, password, width, height,
 
     console.log('Registering user:', firstName, lastName, email, password, width, height, os);
 
-    sendRegistrationEmail(email , password, firstName, lastName);
+    //email is not sent for demo purposes, instead displayed on the login page
+    //sendRegistrationEmail(email , password, firstName, lastName);
     
+
     //sha512 the password before storing it in the database
     password = crypto.SHA512(password).toString(crypto.enc.Hex);
 
@@ -245,8 +256,8 @@ async function registerUser(firstName, lastName, email, password, width, height,
     const values = [firstName, lastName, email, password, width, height, os];
     try{
         const [results] = await db.execute(query, values);
-            console.log('User inserted:', results);
-            res.redirect('/login');
+        console.log('User inserted:', results);
+        res.redirect('/login');
     }
     catch(err) {
         console.error('Database error:', err);
@@ -422,7 +433,6 @@ app.post("/update-cart", isAuthenticated, async (req, res) => {
         const itemPrice = product[0].price * discount;
         const itemTotal = parseFloat(itemPrice * quantity).toFixed(2);
         const discountPercentage = Math.round((1 - discount) * 100); // Calculate discount percentage
-        console.log(quantity)
         await db.execute("UPDATE cartItems SET quantity = ? WHERE productId = ?", [quantity, itemId]);
 
         const cartId = req.session.cart.id;
@@ -430,14 +440,12 @@ app.post("/update-cart", isAuthenticated, async (req, res) => {
         req.session.cart.quantity = await getQuantities();
         
         req.session.cart.items = req.session.cart.items.map((item) => {
-            console.log(item.id, itemId)
             if (parseInt(item.id) === parseInt(itemId)) {
                 item.quantity = quantity;
                 item.total = itemTotal;
                 item.discountPercentage = discountPercentage; // Update discount percentage
                 item.price = itemPrice; // Update item price
             }
-            //console.log(item)
             return item;
         });
 
@@ -524,7 +532,6 @@ app.get('/checkout', isAuthenticated, (req, res) => {
     }
 
     const cartItems = req.session.cart.items;
-    console.log(cartItems);
     const totalPrice = req.session.cart.totalPrice;
     res.render('checkout.ejs', { cartItems, totalPrice });
 
@@ -580,8 +587,8 @@ app.post('/order', isAuthenticated, async (req, res) => {
             await db.execute('UPDATE products SET quantity = quantity - ? WHERE id = ?', [item.quantity, item.id]);
         }
 
-        await sendOrderConfirmation(req.session.user.email, orderId, cartItems, totalPrice, shippingCost);
-
+        //await sendOrderConfirmation(req.session.user.email, orderId, cartItems, totalPrice, shippingCost);
+        console.log('User "' + req.session.user.email + '" bought: ' + JSON.stringify(cartItems));
         res.redirect('/confirmation');
 
     } catch (err) {
@@ -646,7 +653,7 @@ app.get('/order/:id', isAuthenticated, async (req, res) => {
     const totalPrice = totalPriceResult[0].totalAmount;
     const shippingCost = shippingCostResult[0].shippingCost;
 
-    await sendOrderConfirmation(req.session.user.email, orderId, items, totalPrice, shippingCost);
+    //await sendOrderConfirmation(req.session.user.email, orderId, items, totalPrice, shippingCost);
 
     //delete quantity from stock
     for (let item of orderItems) {

@@ -1,0 +1,7 @@
+FROM mysql:8.0
+
+# Copy the init script into the standard entrypoint directory
+# Docker's MySQL entrypoint automatically runs .sql files in this directory
+COPY init.sql /docker-entrypoint-initdb.d/
+
+# The entrypoint and cmd are inherited from the base image
