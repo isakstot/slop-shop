@@ -1,6 +1,6 @@
 -- Create the database and select it
-CREATE DATABASE IF NOT EXISTS slop-shop;
-USE slop-shop;
+CREATE DATABASE IF NOT EXISTS slopshop;
+USE slopshop;
 
 -- Users table
 CREATE TABLE IF NOT EXISTS users (

@@ -1,5 +1,5 @@
 # Slop Shop Webshop
-#### An Express.js based Web application made for a school project
+#### An Express.js based Web Application made for a school project
 
 ## Information:
 This was a group project, but I made all of the backend logic and the docker setup (most of the frontend too, just not the home page or the products inserted into the database).

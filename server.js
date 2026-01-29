@@ -32,49 +32,48 @@ const db = mysql.createPool({
     host: process.env.DB_HOST,
     port: process.env.DB_PORT,
     user: process.env.DB_USER,
-    password: process.env.MYSQL_ROOT_PASSWORD,
-    database: process.env.MYSQL_DATABASE,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_NAME,
     charset: 'utf8mb4',
     waitForConnections: true,
     connectionLimit: 10,
     queueLimit: 0
 });
 
-//test connection to db
-(async () => {
-    try {
-        // Perform a simple query to test the connection
-        const [rows] = await db.query('SELECT 1');
-        console.log('Database connection successful!');
-    } catch (err) {
-        console.error('Error connecting to the database:', err.message);
+// Retry helper for database operations
+async function retryDatabaseOperation(operation, maxRetries = 10, delayMs = 1000) {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+            return await operation();
+        } catch (err) {
+            if (attempt === maxRetries) {
+                throw err;
+            }
+            console.log(`Database operation failed (attempt ${attempt}/${maxRetries}), retrying in ${delayMs}ms...`);
+            await new Promise(resolve => setTimeout(resolve, delayMs));
+        }
     }
-})();
+}
+
+//test connection to db
+retryDatabaseOperation(async () => {
+    const [rows] = await db.query('SELECT 1');
+    console.log('Database connection successful!');
+}).catch(err => console.error('Error connecting to the database:', err.message));
 
 
 //test inserting a new product into the database from the server side
-(async () => {
-    try {
-        //test if the product already exists
-        const [results] = await db.execute('SELECT * FROM products WHERE name = ?', ['Küchenmaschine Deluxe']);
-        if (!results.length > 0) {
-            (async () => {
-                try {
-                    const [results] = await db.execute(
-                        'INSERT INTO products (name, description, price, quantity, imageURL) VALUES (?, ?, ?, ?, ?)',
-                        ['Küchenmaschine Deluxe', 'A multifunctional food processor for your slop cooking needs', 499.99, 10, '/images/kitchen-aid-5231908_640.jpg']
-                    );
-                    console.log('Product inserted:', results);
-                } catch (err) {
-                    console.error('Error inserting product:', err);
-                }
-            })();
-            return;
-        }
-    } catch (err) {
-        console.error('Error checking for product:', err);
+retryDatabaseOperation(async () => {
+    //test if the product already exists
+    const [results] = await db.execute('SELECT * FROM products WHERE name = ?', ['Küchenmaschine Deluxe']);
+    if (!results.length > 0) {
+        const [insertResults] = await db.execute(
+            'INSERT INTO products (name, description, price, quantity, imageURL) VALUES (?, ?, ?, ?, ?)',
+            ['Küchenmaschine Deluxe', 'A multifunctional food processor for your slop cooking needs', 499.99, 10, '/images/kitchen-aid-5231908_640.jpg']
+        );
+        console.log('Product inserted:', insertResults);
     }
-})();
+}).catch(err => console.error('Error with product initialization:', err));
 
 //Session setup
 app.use(session({
